@@ -1,124 +1,110 @@
+<!-- =========================================================
+ Coach’s Colour Tool
+ File: index.html
+ Description: Main HTML structure – references style.css and script.js
+ ========================================================= -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Colour Coach</title>
-<style>
-  html,body{
-    margin:0;padding:0;height:100%;
-    background:#000;color:#fff;font-family:sans-serif;
-    overflow:hidden;text-align:center;
-  }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coach’s Colour Tool</title>
 
-  .screen {
-    position:fixed;top:0;left:0;width:100vw;height:100vh;
-    display:flex;justify-content:center;align-items:center;
-    transition:opacity 0.3s;
-  }
-
-  #setupScreen { background:#000;flex-direction:column;gap:1rem; }
-  #flashScreen { background:#111;flex-direction:column;opacity:0;pointer-events:none; }
-
-  #numberOverlay {
-    font-size:25vw;
-    font-weight:700;
-    text-shadow:0 0 20px rgba(0,0,0,0.5);
-  }
-
-  button{padding:10px 20px;font-size:1.2rem;border:none;
-    border-radius:6px;cursor:pointer;}
-  #startBtn{background:#28a745;color:#fff;}
-  #stopBtn{background:#dc3545;color:#fff;margin-top:2rem;}
-</style>
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<div id="setupScreen" class="screen" style="opacity:1;">
-  <h1>Colour Coach</h1>
-
-  <div>
-    <label><input type="checkbox" id="red" checked> Red</label>
-    <label><input type="checkbox" id="green" checked> Green</label>
-    <label><input type="checkbox" id="blue"> Blue</label>
-    <label><input type="checkbox" id="yellow"> Yellow</label>
+  <!-- ========== HOME SCREEN ========== -->
+  <div id="homeScreen" class="screen">
+    <h1>Coach’s Colour Tool</h1>
+    <div class="home-actions">
+      <button id="homeImportBtn" class="small-btn">Import</button>
+      <button id="homeExportBtn" class="small-btn">Export</button>
+    </div>
+    <div class="tile-grid" id="tileGrid"></div>
+    <button class="create-btn" id="createBtn">+ Create New Session</button>
   </div>
 
-  <div>
-    Min <input type="number" id="minT" value="1" step="0.1" style="width:60px">
-    Max <input type="number" id="maxT" value="3" step="0.1" style="width:60px">
+  <!-- ========== EXPORT MODAL ========== -->
+  <div id="exportOverlay" class="overlay">
+    <div class="modal">
+      <h3>Export Preset</h3>
+      <select id="exportSelect"></select>
+      <div class="modal-buttons">
+        <button class="confirm-green" id="exportConfirm">Export</button>
+        <button class="cancel" id="exportCancel">Cancel</button>
+      </div>
+    </div>
   </div>
 
-  <label><input type="checkbox" id="numbers"> Show numbers (1–9)</label>
-  <button id="startBtn">Start</button>
-</div>
+  <!-- ========== DELETE CONFIRMATION MODAL ========== -->
+  <div id="deleteOverlay" class="overlay">
+    <div class="modal">
+      <h3 id="deleteText"></h3>
+      <div class="modal-buttons">
+        <button class="confirm-red" id="deleteConfirm">Delete</button>
+        <button class="cancel" id="deleteCancel">Cancel</button>
+      </div>
+    </div>
+  </div>
 
-<div id="flashScreen" class="screen">
-  <div id="numberOverlay"></div>
-  <button id="stopBtn">Stop</button>
-</div>
+  <!-- ========== SETUP SCREEN ========== -->
+  <div id="setupScreen" class="screen">
+    <div class="menu-card">
+      <h1>Setup Session</h1>
+      <h2>Presets</h2>
+      <select id="presetSelect"><option value="">Select a preset...</option></select>
+      <div style="display:flex;gap:.5rem;justify-content:center;">
+        <button id="savePresetBtn" style="background:#3498db;color:#fff;">Save</button>
+        <button id="deletePresetBtn" style="background:#e67e22;color:#fff;">Delete</button>
+      </div>
+      <h2>Colours</h2>
+      <label>Red<input type="checkbox" id="red" checked></label>
+      <label>Green<input type="checkbox" id="green" checked></label>
+      <label>Blue<input type="checkbox" id="blue"></label>
+      <label>Yellow<input type="checkbox" id="yellow"></label>
 
-<script>
-const setup=document.getElementById('setupScreen');
-const flash=document.getElementById('flashScreen');
-const num=document.getElementById('numberOverlay');
-const start=document.getElementById('startBtn');
-const stop=document.getElementById('stopBtn');
+      <h2>Timing</h2>
+      <label>Min <input type="number" id="minT" value="1" step="0.1"> s</label>
+      <label>Max <input type="number" id="maxT" value="3" step="0.1"> s</label>
 
-let running=false,timer;
+      <h2>Options</h2>
+      <label>Show numbers<input type="checkbox" id="numbers"></label>
+      <div id="numberOptions" style="display:none;">
+        <label>One number<input type="radio" name="numMode" id="oneNumber" value="one" checked></label>
+        <label id="twoNumbersOption" style="display:none;">Two numbers<input type="radio" name="numMode" id="twoNumbers" value="two"></label>
+      </div>
+      <label>Split screen<input type="checkbox" id="splitMode"></label>
+      <div id="splitDirectionBox" style="display:none;">
+        <label>Direction
+          <select id="splitDirection">
+            <option value="right">Left–Right</option>
+            <option value="bottom">Top–Bottom</option>
+          </select>
+        </label>
+      </div>
+      <div style="text-align:center;margin-top:1rem;">
+        <button id="startBtn">Start Session</button>
+      </div>
+    </div>
+    <button id="homeFromSetup">🏠 Home</button>
+  </div>
 
-start.onclick=()=>{
-  const cols=[];
-  if(red.checked)cols.push('#ff0000');
-  if(green.checked)cols.push('#00ff00');
-  if(blue.checked)cols.push('#0000ff');
-  if(yellow.checked)cols.push('#ffff00');
-  if(!cols.length){alert('Pick at least one colour');return;}
+  <!-- ========== FLASH SCREEN ========== -->
+  <div id="flashScreen" class="screen">
+    <div id="numberOverlay"></div>
+    <div id="numLeft"></div><div id="numRight"></div>
+    <div id="numTop"></div><div id="numBottom"></div>
+    <button id="homeFromSession">🏠 Home</button>
+    <button id="stopBtn">Stop</button>
+  </div>
 
-  const min=parseFloat(minT.value);
-  const max=parseFloat(maxT.value);
-  const showNum=numbers.checked;
+  <!-- Toast -->
+  <div id="toast"></div>
 
-  running=true;
-  setup.style.opacity='0';
-  setup.style.pointerEvents='none';
-  flash.style.opacity='1';
-  flash.style.pointerEvents='auto';
-
-  flashColours(cols,min,max,showNum);
-};
-
-stop.onclick=()=>{
-  running=false;
-  clearTimeout(timer);
-  setup.style.opacity='1';
-  setup.style.pointerEvents='auto';
-  flash.style.opacity='0';
-  flash.style.pointerEvents='none';
-  num.textContent='';
-};
-
-function flashColours(cols,min,max,showNum){
-  if(!running)return;
-  const c=cols[Math.floor(Math.random()*cols.length)];
-  flash.style.background=c;
-
-  if(showNum){
-    const n=Math.floor(Math.random()*9)+1;
-    num.textContent=n;
-    const {r,g,b}=hexToRgb(c);
-    const bright=(r*299+g*587+b*114)/1000;
-    num.style.color=bright>130?'#000':'#fff';
-  }else num.textContent='';
-
-  const delay=(Math.random()*(max-min)+min)*1000;
-  timer=setTimeout(()=>flashColours(cols,min,max,showNum),delay);
-}
-
-function hexToRgb(hex){
-  const res=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return res?{r:parseInt(res[1],16),g:parseInt(res[2],16),b:parseInt(res[3],16)}:{r:0,g:0,b:0};
-}
-</script>
+  <!-- Scripts -->
+  <script src="script.js"></script>
 </body>
 </html>
