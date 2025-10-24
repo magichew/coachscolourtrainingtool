@@ -1,7 +1,14 @@
 /* =========================================================
  Coach’s Colour Tool
  File: script.js
- Description: Full logic – instant, synced previews
+ Description: Full logic with:
+  - Instant, synced tile previews (numbers + colours change together)
+  - Import / Export (single preset via modal)
+  - Save / Load / Delete presets (with confirmation)
+  - NEW badge on imported presets (auto-fade)
+  - Live session (split / numbers / contrast-aware)
+  - Automatic fullscreen (session start, PWA launch); exit on Stop
+  - Robust default preset seeding
  ========================================================= */
 
 /* ---------- Utility Functions ---------- */
@@ -24,6 +31,19 @@ function showToast(msg,col){
   toast.style.background=col;
   toast.classList.add('show');
   setTimeout(()=>toast.classList.remove('show'),1500);
+}
+
+/* ---------- Fullscreen Helpers ---------- */
+function enterFullScreen() {
+  const el = document.documentElement;
+  if (el.requestFullscreen) el.requestFullscreen();
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen(); // iOS Safari
+  else if (el.msRequestFullscreen) el.msRequestFullscreen();
+}
+function exitFullScreen() {
+  if (document.exitFullscreen) document.exitFullscreen();
+  else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  else if (document.msExitFullscreen) document.msExitFullscreen();
 }
 
 /* ---------- Storage (robust) ---------- */
@@ -57,32 +77,42 @@ const tileGrid=document.getElementById('tileGrid');
 const createBtn=document.getElementById('createBtn');
 const homeFromSetup=document.getElementById('homeFromSetup');
 const homeFromSession=document.getElementById('homeFromSession');
+
 const homeImportBtn=document.getElementById('homeImportBtn');
 const homeExportBtn=document.getElementById('homeExportBtn');
+
 const exportOverlay=document.getElementById('exportOverlay');
 const exportSelect=document.getElementById('exportSelect');
 const exportConfirm=document.getElementById('exportConfirm');
 const exportCancel=document.getElementById('exportCancel');
+
 const deleteOverlay=document.getElementById('deleteOverlay');
 const deleteText=document.getElementById('deleteText');
 const deleteConfirm=document.getElementById('deleteConfirm');
 const deleteCancel=document.getElementById('deleteCancel');
+
 const red=document.getElementById('red');
 const green=document.getElementById('green');
 const blue=document.getElementById('blue');
 const yellow=document.getElementById('yellow');
+
 const minT=document.getElementById('minT');
 const maxT=document.getElementById('maxT');
+
 const numbers=document.getElementById('numbers');
+const numberOptions=document.getElementById('numberOptions');
+const twoNumbersOption=document.getElementById('twoNumbersOption');
+
 const splitMode=document.getElementById('splitMode');
 const splitDir=document.getElementById('splitDirection');
+
 const presetSelect=document.getElementById('presetSelect');
 const savePresetBtn=document.getElementById('savePresetBtn');
 const deletePresetBtn=document.getElementById('deletePresetBtn');
-const numberOptions=document.getElementById('numberOptions');
-const twoNumbersOption=document.getElementById('twoNumbersOption');
+
 const startBtn=document.getElementById('startBtn');
 const stopBtn=document.getElementById('stopBtn');
+
 const numCentre=document.getElementById('numberOverlay');
 const numLeft=document.getElementById('numLeft');
 const numRight=document.getElementById('numRight');
@@ -147,7 +177,7 @@ function buildHomeGrid(){
     `;
     tile.querySelector('.tile-edit').onclick=(e)=>{e.stopPropagation();loadPreset(name);showScreen(setup);};
     tile.querySelector('.tile-delete').onclick=(e)=>{e.stopPropagation();confirmDelete(name);};
-    tile.onclick=()=>{loadPreset(name);startSessionFromPreset();};
+    tile.onclick=()=>{enterFullScreen();loadPreset(name);startSessionFromPreset();};
     tileGrid.appendChild(tile);
     startOneTilePreview(tile,pr,cols);
   });
@@ -159,7 +189,6 @@ function stopTilePreviews(){
   previewLoops={};
 }
 
-/* ---------- Individual Tile Simulation ---------- */
 function startOneTilePreview(tile,pr,cols){
   const name=tile.dataset.preset;
   const wrap=tile.querySelector('.tile-prev-wrap');
@@ -201,7 +230,6 @@ function startOneTilePreview(tile,pr,cols){
     }
   }
 
-  // ✅ Instant number + colour change (no fade)
   function step(){
     let c1,c2;
     if(pr.split&&cols.length>=2){
@@ -226,7 +254,7 @@ function startOneTilePreview(tile,pr,cols){
         numEl.textContent=rand1to9();
       }
       numEl.style.display='block';
-      numEl.style.opacity='1';
+      numEl.style.opacity='1'; // stays visible until next step
     }
 
     const id=setTimeout(step,nextDelay());
@@ -239,26 +267,34 @@ function startOneTilePreview(tile,pr,cols){
   previewLoops[name].push(startId);
 }
 
-/* ---------- Preset Controls, Import/Export, and Session ---------- */
-// (unchanged – same as your previous working version)
+/* ---------- Delete Confirm ---------- */
+let pendingDelete=null;
 function confirmDelete(name){
   if(name==="Go/No Go"){showToast('Cannot delete default preset','#e67e22');return;}
-  pendingDelete=name;deleteText.textContent=`Delete preset "${name}"?`;
+  pendingDelete=name;
+  deleteText.textContent=`Delete preset "${name}"?`;
   deleteOverlay.style.display='flex';
 }
 deleteCancel.onclick=()=>{deleteOverlay.style.display='none';pendingDelete=null;};
 deleteConfirm.onclick=()=>{
   if(!pendingDelete)return;
-  const p=getPresets();delete p[pendingDelete];savePresets(p);
-  buildHomeGrid();showToast(`Preset "${pendingDelete}" deleted`,'#e74c3c');
-  deleteOverlay.style.display='none';pendingDelete=null;
+  const p=getPresets();
+  delete p[pendingDelete];
+  savePresets(p);
+  buildHomeGrid();
+  showToast(`Preset "${pendingDelete}" deleted`,'#e74c3c');
+  deleteOverlay.style.display='none';
+  pendingDelete=null;
 };
+
+/* ---------- Presets ---------- */
 function populatePresetDropdown(){
   const p=getPresets();
   presetSelect.innerHTML='<option value="">Select...</option>';
   Object.keys(p).forEach(k=>{
     const o=document.createElement('option');
-    o.value=k;o.textContent=k;presetSelect.appendChild(o);
+    o.value=k;o.textContent=k;
+    presetSelect.appendChild(o);
   });
 }
 function getCurrent(){
@@ -301,12 +337,15 @@ function deletePreset(){
   populatePresetDropdown();buildHomeGrid();
   showToast(`Preset "${n}" deleted`,'#e67e22');
 }
+
+/* ---------- Export (single preset) ---------- */
 function openExportModal(){
   const presets=getPresets();
   exportSelect.innerHTML='';
   Object.keys(presets).forEach(k=>{
     const o=document.createElement('option');
-    o.value=k;o.textContent=k;exportSelect.appendChild(o);
+    o.value=k;o.textContent=k;
+    exportSelect.appendChild(o);
   });
   exportOverlay.style.display='flex';
 }
@@ -319,8 +358,11 @@ function confirmExport(){
   const date=new Date().toISOString().split('T')[0];
   link.download=`Coach_Colour_Preset_${n}_${date}.json`;
   link.href=URL.createObjectURL(blob);link.click();
-  closeExportModal();showToast(`Preset "${n}" exported`,'#f39c12');
+  closeExportModal();
+  showToast(`Preset "${n}" exported`,'#f39c12');
 }
+
+/* ---------- Import (multiple; mark NEW) ---------- */
 function importPresets(){
   const input=document.createElement('input');
   input.type='file';input.accept='.json,application/json';
@@ -347,6 +389,9 @@ function importPresets(){
 
 /* ---------- Session ---------- */
 let running=false,timer;
+function clearNumbers(){
+  [numCentre,numLeft,numRight,numTop,numBottom].forEach(e=>{e.textContent='';e.style.display='none';});
+}
 function startSessionFromPreset(){
   showScreen(flash);
   const cols=[];
@@ -354,16 +399,24 @@ function startSessionFromPreset(){
   if(green.checked)cols.push('#00ff00');
   if(blue.checked)cols.push('#0000ff');
   if(yellow.checked)cols.push('#ffff00');
-  flashColours(cols,parseFloat(minT.value),parseFloat(maxT.value),
+  flashColours(
+    cols,
+    parseFloat(minT.value),parseFloat(maxT.value),
     numbers.checked,
     document.querySelector('input[name="numMode"]:checked')?.value||'one',
-    splitMode.checked,splitDir.value);
+    splitMode.checked,splitDir.value
+  );
 }
-startBtn.onclick=()=>{showScreen(flash);startSessionFromPreset();};
+startBtn.onclick=()=>{
+  enterFullScreen();
+  showScreen(flash);
+  startSessionFromPreset();
+};
 stopBtn.onclick=stop;
 function stop(){
+  exitFullScreen();
   running=false;clearTimeout(timer);
-  [numCentre,numLeft,numRight,numTop,numBottom].forEach(e=>{e.textContent='';e.style.display='none';});
+  clearNumbers();
   showScreen(home);
 }
 function flashColours(cols,min,max,showNum,numMode,split,dir){
@@ -377,7 +430,7 @@ function flashColours(cols,min,max,showNum,numMode,split,dir){
     c1=cols[Math.floor(Math.random()*cols.length)];
     flash.style.background=c1;
   }
-  [numCentre,numLeft,numRight,numTop,numBottom].forEach(e=>{e.textContent='';e.style.display='none';});
+  clearNumbers();
   if(showNum){
     if(numMode==='one'||!split){
       const n=rand1to9();
@@ -405,13 +458,17 @@ function flashColours(cols,min,max,showNum,numMode,split,dir){
 createBtn.onclick=()=>showScreen(setup);
 homeFromSetup.onclick=()=>showScreen(home);
 homeFromSession.onclick=()=>{stop();showScreen(home);};
+
 homeImportBtn.onclick=importPresets;
 homeExportBtn.onclick=openExportModal;
 exportCancel.onclick=closeExportModal;
 exportConfirm.onclick=confirmExport;
+
 savePresetBtn.onclick=savePreset;
 deletePresetBtn.onclick=deletePreset;
+
 presetSelect.onchange=()=>{if(presetSelect.value)loadPreset(presetSelect.value);};
+
 splitMode.onchange=()=>{
   document.getElementById('splitDirectionBox').style.display=splitMode.checked?'block':'none';
   twoNumbersOption.style.display=(splitMode.checked&&numbers.checked)?'flex':'none';
@@ -427,5 +484,10 @@ function initApp(){
   populatePresetDropdown();
   buildHomeGrid();
   showScreen(home);
+
+  // Auto-fullscreen when launched from home screen (PWA mode)
+  if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+    enterFullScreen();
+  }
 }
 window.addEventListener('load',initApp);
